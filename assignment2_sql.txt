@@ -1,0 +1,125 @@
+Q1 - Compare the final_assignments_qa table to the assignment events we captured for user_level_testing. Write an answer to the following question: Does this table have everything you need to compute metrics like 30-day view-binary?
+
+Answer: No. There is no time when the test started to run, so I can not compute the 30 days metrics. I only have information on the group assignment, item_id, and test_id.
+
+code:
+
+SELECT * 
+FROM final_assignments_qa 
+
+-- see elements from final_assignments_qa table 
+
+Q2 - Write a query and table creation statement to make final_assignments_qa look like the final_assignments table. If you discovered something missing in part 1, you may fill in the value with a place holder of the appropriate data type. 
+
+select item_id,
+       test_a as test_assignment,
+       (case when (test_a = 1 or test_a = 0) then 'item_test_1' else Null end) 
+          as test_number,
+        date ('07-11-2022') as test_start_date -- date of one month ago
+from dsv1069.final_assignments_qa
+UNION
+select item_id,
+       test_b as test_assignment,
+       (case when (test_b = 1 or test_b = 0) then 'item_test_2' else Null end) 
+          as test_number,
+        date ('07-11-2022') as test_start_date -- date of one month ago
+from dsv1069.final_assignments_qa
+UNION
+select item_id,
+       test_c as test_assignment,
+       (case when (test_c = 1 or test_c = 0) then 'item_test_3' else Null end) 
+          as test_number,
+        date ('07-11-2022') as test_start_date -- date of one month ago
+from dsv1069.final_assignments_qa
+UNION
+select item_id,
+       test_d as test_assignment,
+       (case when (test_d = 1 or test_d = 0) then 'item_test_4' else Null end) 
+          as test_number,
+        date ('07-11-2022') as test_start_date -- date of one month ago
+from dsv1069.final_assignments_qa
+UNION
+select item_id,
+       test_e as test_assignment,
+       (case when (test_e = 1 or test_e = 0) then 'item_test_5' else Null end) 
+          as test_number,
+        date ('07-11-2022') as test_start_date -- date of one month ago
+from dsv1069.final_assignments_qa
+UNION
+select item_id,
+       test_f as test_assignment,
+       (case when (test_f = 1 or test_f = 0) then 'item_test_6' else Null end) 
+          as test_number,
+        date ('07-11-2022') as test_start_date -- date of one month ago
+from dsv1069.final_assignments_qa
+order by test_number
+
+Q3- Use the final_assignments table to calculate the order binary for the 30 day window after the test assignment for item_test_2 (You may include the day the test started)
+
+select test_assignment,
+       COUNT (item_id) as total_items,
+       SUM (order_binary) as orders_within_30days
+from (select orders.item_id, 
+             test_assignment,
+       MAX(case when (date(paid_at) - date (test_start_date)) 
+       between 0 and 30 
+       then 1 else 0 end) as order_binary
+  from dsv1069.orders as orders
+  left join dsv1069.final_assignments as final 
+       on orders.item_id = final.item_id
+  WHERE test_number = 'item_test_2'
+  group by orders.item_id, 
+             test_assignment
+  order by item_id
+  ) as order_level
+GROUP by test_assignment
+
+Q4- Use the final_assignments table to calculate the view binary, and average views for the 30 day window after the test assignment for item_test_2. (You may include the day the test started)
+
+SELECT test_assignment,
+       COUNT (item_id) as total_items,
+       AVG (view_binary) as avg_views,
+       SUM (views_within_30days) as views_within_30days
+FROM 
+  (SELECT
+       item_id,
+       test_assignment,
+       COUNT (item_id) as total_items,
+       SUM (view_binary) as views_within_30days,
+       view_binary
+  from (select view_item_events.item_id,
+             test_assignment,
+       MAX(case when (date(event_time) - date (test_start_date)) 
+       between 0 and 30 
+       then 1 else 0 end) as view_binary
+    from dsv1069.view_item_events as view_item_events
+    left join dsv1069.final_assignments as final 
+       on view_item_events.item_id = final.item_id
+    WHERE test_number = 'item_test_2'
+    group by view_item_events.item_id, 
+             test_assignment
+  ) as view_item_level
+  GROUP by test_assignment,
+           view_item_level.item_id,
+           view_item_level.view_binary) mean_metrics
+group by test_assignment
+
+Q5- Use the abba to compute the lifts in metrics and the p-values for the binary metrics ( 30 day order binary and 30 day view binary) using a interval 95% confidence. 
+
+Answer: AB testing orders binary: Lift: -2.5% (-15% - 10%), p-value: 0.7
+	AB testing views binary: Lift: 2.3% (-1.6% - 6.1%), p-value: 0.25
+
+Q6-
+--Question 6
+
+--Charts provided on Question 3. and Question 4.
+--AB testing orders binary: Lift: -2.5% (-15% - 10%), p-value: 0.7
+--AB testing views binary: Lift: 2.3% (-1.6% - 6.1%), p-value: 0.25
+
+--Despite of a small decrease in orders binary lift (-2.5%) and small increase in views binary lift
+-- (2.3%), the AB testing suggested that item_test_2 experiment returned a non-sigficant lift in 
+--success rate for orders and views, given that the p-value considering a 0.95 confidece interval 
+--was much higher than 0.05 (0.7 for orders binary and 0.25 for views binary). 0.05 p-value is the 
+--cut-off value for rejecting null hyphotesis of AB testing, which is that the mean values of the
+--treatment group is significantly different from control. -- Our finding suggested no differences
+--betwween test and control group in item_test_2 experiment for both orders binary and views binary.
